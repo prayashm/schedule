@@ -8,7 +8,7 @@ import datetime
 # pylint: disable-msg=R0201,C0111,E0102,R0904,R0901
 
 import schedule
-from schedule import every
+from schedule import every, on
 
 
 def make_mock_job(name=None):
@@ -62,6 +62,41 @@ class SchedulerTests(unittest.TestCase):
         assert every().day.at('09:00').do(mock_job).next_run.day == 7
         assert every().day.at('12:30').do(mock_job).next_run.day == 6
         assert every().week.do(mock_job).next_run.day == 13
+
+        assert on('fri').do(mock_job).next_run.day == 8
+
+        job = on('wed').do(mock_job)
+        assert job.next_run.day == 6
+        job.last_run = job.next_run
+        job._schedule_next_run()
+        assert job.next_run.day == 13
+
+        job = every(2).weeks.on('fri|sat').between("07:00-19:00").do(mock_job)
+        assert job.next_run.day in [8, 9]
+        job.last_run = job.next_run
+        job._schedule_next_run()
+        assert job.next_run.day in [22, 23]
+
+        job = on('sun|mon', 'thu|fri').between('07:00-19:00').do(mock_job)
+        assert 'Sunday' in job.__repr__()
+        assert job.next_run.day in [7, 8]
+        time_start = datetime.time(7, 0)
+        time_end = datetime.time(19, 0)
+        assert time_start <= job.next_run.time() <= time_end
+        job.last_run = job.next_run
+        job._schedule_next_run()
+        assert job.next_run.day in [10, 11]
+
+        job = on('tue|mon', 'wed', 'Frid').starting('2010-01-21').do(mock_job)
+        assert 'Wednesday' in job.__repr__()  # for 100% coverage :)
+        assert job.next_run.day == 22
+        job.last_run = job.next_run
+        job._schedule_next_run()
+        assert job.next_run.day in [25, 26]
+        job.last_run = job.next_run
+        job._schedule_next_run()
+        assert job.next_run.day == 27
+        assert every(5).minutes.do(mock_job).next_run.minute == 20
 
         datetime.datetime = original_datetime
 

@@ -44,7 +44,10 @@ Usage
 
     schedule.every(10).minutes.do(job)
     schedule.every().hour.do(job)
-    schedule.every().day.at("10:30").do(job)
+    schedule.every().day.at('10:30').do(job)
+    schedule.every(2).weeks.starting('2013-08-28').do(job)
+    schedule.every(2).weeks.on('Tuesday', 'fri').between("07:00-19:00").do(job)
+    schedule.on('sun|mon', 'wed|thu').between('15:00-18:00').do(job)
 
     while True:
         schedule.run_pending()

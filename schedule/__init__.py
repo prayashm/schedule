@@ -139,16 +139,27 @@ class Job(object):
                   for k, v in self.job_func.keywords.items()]
         call_repr = job_func_name + '(' + ', '.join(args + kwargs) + ')'
 
-        if self.at_time is not None:
-            return 'Every %s %s at %s do %s %s' % (
-                   self.interval,
-                   self.unit[:-1] if self.interval == 1 else self.unit,
-                   self.at_time, call_repr, timestats)
+        if self.run_days:
+            final_days = []
+            for day in self.run_days:
+                days_str = [k.title() for k, i in Job.WEEKDAYS.items()
+                            for d in day if i == d]
+                final_days.append(' or '.join(days_str))
+            repr_str = 'Every %s' % ' and '.join(final_days)
         else:
-            return 'Every %s %s do %s %s' % (
-                   self.interval,
-                   self.unit[:-1] if self.interval == 1 else self.unit,
-                   call_repr, timestats)
+            repr_str = 'Every %s %s' % (
+                self.interval,
+                self.unit[:-1] if self.interval == 1 else self.unit)
+
+        if self.between_times:
+            repr_str += ' between %s and %s' % (
+                self.between_times[0].time(), self.between_times[1].time())
+        elif self.at_time:
+            repr_str += ' at %s' % self.at_time
+        if self.start_run:
+            repr_str += ' starting %s' % self.start_run
+        repr_str += ' do %s %s' % (call_repr, timestats)
+        return repr_str
 
     @property
     def second(self):

@@ -272,6 +272,7 @@ class Job(object):
         self.job_func = functools.partial(job_func, *args, **kwargs)
         functools.update_wrapper(self.job_func, job_func)
         self._schedule_next_run()
+        logger.info('Scheduled job %s', self)
         return self
 
     @property

@@ -9,6 +9,7 @@ import datetime
 
 import schedule
 from schedule import every, on
+from dateutil.tz import tzlocal, gettz
 
 
 def make_mock_job(name=None):
@@ -44,12 +45,12 @@ class SchedulerTests(unittest.TestCase):
         # Monkey-patch datetime.datetime to get predictable (=testable) results
         class MockDate(datetime.datetime):
             @classmethod
-            def today(cls):
-                return cls(2010, 1, 6)
+            def today(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 6, tzinfo=tzinfo)
 
             @classmethod
-            def now(cls):
-                return cls(2010, 1, 6, 12, 15)
+            def now(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 6, 12, 15, tzinfo=tzinfo)
         original_datetime = datetime.datetime
         datetime.datetime = MockDate
 
@@ -100,6 +101,25 @@ class SchedulerTests(unittest.TestCase):
 
         datetime.datetime = original_datetime
 
+    def test_timezone(self):
+        # Monkey-patch datetime.datetime to get predictable (=testable) results
+        class MockDate(datetime.datetime):
+            @classmethod
+            def today(cls, tzinfo=gettz('GMT')):
+                return cls(2010, 7, 11, tzinfo=tzinfo)
+
+            @classmethod
+            def now(cls, tzinfo=gettz('GMT')):
+                return cls(2010, 7, 11, 12, 15, tzinfo=tzinfo)
+        original_datetime = datetime.datetime
+        datetime.datetime = MockDate
+
+        mock_job = make_mock_job()
+        job_nr = every().day.at('09:00 PDT').do(mock_job).next_run
+        assert (job_nr - datetime.datetime.now()).total_seconds() == 13500
+
+        datetime.datetime = original_datetime
+
     def test_run_all(self):
         mock_job = make_mock_job()
         every().minute.do(mock_job)
@@ -138,12 +158,12 @@ class SchedulerTests(unittest.TestCase):
         # Monkey-patch datetime.datetime to get predictable (=testable) results
         class MockDate(datetime.datetime):
             @classmethod
-            def today(cls):
-                return cls(2010, 1, 6)
+            def today(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 6, tzinfo=tzinfo)
 
             @classmethod
-            def now(cls):
-                return cls(2010, 1, 6, 12, 15)
+            def now(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 6, 12, 15, tzinfo=tzinfo)
         original_datetime = datetime.datetime
         datetime.datetime = MockDate
 
@@ -158,12 +178,12 @@ class SchedulerTests(unittest.TestCase):
         # Minutely
         class MockDate(datetime.datetime):
             @classmethod
-            def today(cls):
-                return cls(2010, 1, 6)
+            def today(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 6, tzinfo=tzinfo)
 
             @classmethod
-            def now(cls):
-                return cls(2010, 1, 6, 12, 16)
+            def now(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 6, 12, 16, tzinfo=tzinfo)
         datetime.datetime = MockDate
         schedule.run_pending()
         assert mock_job.call_count == 1
@@ -171,12 +191,12 @@ class SchedulerTests(unittest.TestCase):
         # Minutely, hourly
         class MockDate(datetime.datetime):
             @classmethod
-            def today(cls):
-                return cls(2010, 1, 6)
+            def today(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 6, tzinfo=tzinfo)
 
             @classmethod
-            def now(cls):
-                return cls(2010, 1, 6, 13, 16)
+            def now(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 6, 13, 16, tzinfo=tzinfo)
         datetime.datetime = MockDate
 
         mock_job.reset_mock()
@@ -186,12 +206,12 @@ class SchedulerTests(unittest.TestCase):
         # Minutely, hourly, daily
         class MockDate(datetime.datetime):
             @classmethod
-            def today(cls):
-                return cls(2010, 1, 7)
+            def today(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 7, tzinfo=tzinfo)
 
             @classmethod
-            def now(cls):
-                return cls(2010, 1, 7, 13, 16)
+            def now(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 7, 13, 16, tzinfo=tzinfo)
         datetime.datetime = MockDate
 
         mock_job.reset_mock()
@@ -203,12 +223,12 @@ class SchedulerTests(unittest.TestCase):
     def test_run_every_n_days_at_specific_time(self):
         class MockDate(datetime.datetime):
             @classmethod
-            def today(cls):
-                return cls(2010, 1, 6)
+            def today(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 6, tzinfo=tzinfo)
 
             @classmethod
-            def now(cls):
-                return cls(2010, 1, 6, 13, 16)
+            def now(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 6, 13, 16, tzinfo=tzinfo)
         original_datetime = datetime.datetime
         datetime.datetime = MockDate
 
@@ -220,12 +240,12 @@ class SchedulerTests(unittest.TestCase):
 
         class MockDate(datetime.datetime):
             @classmethod
-            def today(cls):
-                return cls(2010, 1, 7)
+            def today(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 7, tzinfo=tzinfo)
 
             @classmethod
-            def now(cls):
-                return cls(2010, 1, 7, 13, 16)
+            def now(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 7, 13, 16, tzinfo=tzinfo)
         datetime.datetime = MockDate
 
         schedule.run_pending()
@@ -233,12 +253,12 @@ class SchedulerTests(unittest.TestCase):
 
         class MockDate(datetime.datetime):
             @classmethod
-            def today(cls):
-                return cls(2010, 1, 8)
+            def today(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 8, tzinfo=tzinfo)
 
             @classmethod
-            def now(cls):
-                return cls(2010, 1, 8, 13, 16)
+            def now(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 8, 13, 16, tzinfo=tzinfo)
         datetime.datetime = MockDate
 
         schedule.run_pending()
@@ -246,12 +266,12 @@ class SchedulerTests(unittest.TestCase):
 
         class MockDate(datetime.datetime):
             @classmethod
-            def today(cls):
+            def today(cls, tzinfo=tzlocal()):
                 return cls(2010, 1, 10)
 
             @classmethod
-            def now(cls):
-                return cls(2010, 1, 10, 13, 16)
+            def now(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 10, 13, 16, tzinfo=tzinfo)
         datetime.datetime = MockDate
 
         schedule.run_pending()
@@ -262,12 +282,12 @@ class SchedulerTests(unittest.TestCase):
     def test_next_run_property(self):
         class MockDate(datetime.datetime):
             @classmethod
-            def today(cls):
-                return cls(2010, 1, 6)
+            def today(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 6, tzinfo=tzinfo)
 
             @classmethod
-            def now(cls):
-                return cls(2010, 1, 6, 13, 16)
+            def now(cls, tzinfo=tzlocal()):
+                return cls(2010, 1, 6, 13, 16, tzinfo=tzinfo)
         original_datetime = datetime.datetime
         datetime.datetime = MockDate
 
@@ -277,7 +297,8 @@ class SchedulerTests(unittest.TestCase):
         every().hour.do(hourly_job)
         assert len(schedule.jobs) == 2
         # Make sure the hourly job is first
-        assert schedule.next_run() == original_datetime(2010, 1, 6, 14, 16)
+        snr = schedule.next_run()
+        assert snr == original_datetime(2010, 1, 6, 14, 16, tzinfo=snr.tzinfo)
         assert schedule.idle_seconds() == 60 * 60
 
         datetime.datetime = original_datetime

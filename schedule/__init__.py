@@ -272,7 +272,6 @@ class Job(object):
         self.job_func = functools.partial(job_func, *args, **kwargs)
         functools.update_wrapper(self.job_func, job_func)
         self._schedule_next_run()
-        logger.info('Scheduled job %s', self)
         return self
 
     @property
@@ -343,6 +342,8 @@ class Job(object):
             if (not self.last_run and not self.run_days and
                     self.at_time > datetime.datetime.now().time()):
                 self.next_run = self.next_run - datetime.timedelta(days=1)
+
+        logger.info('Scheduled job %s', self)
 
 
 # The following methods are shortcuts for not having to

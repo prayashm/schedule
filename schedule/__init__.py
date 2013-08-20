@@ -39,6 +39,10 @@ import functools
 import logging
 import random
 import time
+from dateutil import parser
+from dateutil.tz import tzlocal
+
+from .tz import tz_offsets
 
 logger = logging.getLogger('schedule')
 
@@ -101,7 +105,8 @@ class Scheduler(object):
     @property
     def idle_seconds(self):
         """Number of seconds until `next_run`."""
-        return (self.next_run - datetime.datetime.now()).total_seconds()
+        return (self.next_run - datetime.datetime.now(tzlocal())
+                ).total_seconds()
 
 
 class Job(object):
@@ -127,8 +132,11 @@ class Job(object):
         return self.next_run < other.next_run
 
     def __repr__(self):
+        fmt_dt = "%Y-%m-%d %H:%M:%S %Z"
+        fmt_t = "%H:%M:%S %Z"
+
         def format_time(t):
-            return t.strftime("%Y-%m-%d %H:%M:%S") if t else '[never]'
+            return t.strftime(fmt_dt) if t else '[never]'
 
         timestats = '(last run: %s, next run: %s)' % (
                     format_time(self.last_run), format_time(self.next_run))
@@ -152,12 +160,13 @@ class Job(object):
                 self.unit[:-1] if self.interval == 1 else self.unit)
 
         if self.between_times:
-            repr_str += ' between %s and %s' % (
-                self.between_times[0].time(), self.between_times[1].time())
+            repr_str += ' between %s' % ' and '.join(
+                t.strftime(fmt_t).strip()
+                for t in self.between_times)
         elif self.at_time:
-            repr_str += ' at %s' % self.at_time
+            repr_str += ' at %s' % self.at_time.strftime(fmt_t).strip()
         if self.start_run:
-            repr_str += ' starting %s' % self.start_run
+            repr_str += ' starting %s' % self.start_run.strftime(fmt_dt)
         repr_str += ' do %s %s' % (call_repr, timestats)
         return repr_str
 
@@ -245,21 +254,26 @@ class Job(object):
         N day(s).
         """
         assert self.unit == 'days'
-        hour, minute = [int(t) for t in time_str.split(':')]
-        assert 0 <= hour <= 23
-        assert 0 <= minute <= 59
-        self.at_time = datetime.time(hour, minute)
+        self.at_time = parser.parse(time_str, tzinfos=tz_offsets)
+        if not self.at_time.tzinfo:
+            self.at_time = self.at_time.replace(tzinfo=tzlocal())
         return self
 
     def between(self, time_str):
         """Schedule the job at a random time between two timestamps."""
-        start, end = [datetime.datetime.strptime(t, '%H:%M')
-                      for t in time_str.split('-')]
-        self.between_times = (start, end)
+        times = []
+        for t in time_str.split('-'):
+            dt = parser.parse(t, tzinfos=tz_offsets)
+            if not dt.tzinfo:
+                dt = dt.replace(tzinfo=tzlocal())
+            times.append(dt)
+        self.between_times = tuple(times)
         return self
 
     def starting(self, date_str):
-        self.start_run = datetime.datetime.strptime(date_str, '%Y-%m-%d')
+        self.start_run = parser.parse(date_str, tzinfos=tz_offsets)
+        if not self.start_run.tzinfo:
+            self.start_run = self.start_run.replace(tzinfo=tzlocal())
         return self
 
     def do(self, job_func, *args, **kwargs):
@@ -277,13 +291,13 @@ class Job(object):
     @property
     def should_run(self):
         """True if the job should be run now."""
-        return datetime.datetime.now() >= self.next_run
+        return datetime.datetime.now(tzlocal()) >= self.next_run
 
     def run(self):
         """Run the job and immediately reschedule it."""
         logger.info('Running job %s', self)
         self.job_func()
-        self.last_run = datetime.datetime.now()
+        self.last_run = datetime.datetime.now(tzlocal())
         self._schedule_next_run()
 
     def _schedule_next_run(self):
@@ -291,7 +305,7 @@ class Job(object):
         # Allow *, ** magic temporarily:
         # pylint: disable=W0142
         assert self.unit in ('seconds', 'minutes', 'hours', 'days', 'weeks')
-        starting = self.start_run or datetime.datetime.now()
+        starting = self.start_run or datetime.datetime.now(tzlocal())
 
         self.period = datetime.timedelta(**{self.unit: self.interval})
         self.next_run = starting + self.period
@@ -331,16 +345,17 @@ class Job(object):
             # Choose a random time between both timestamps
             self.at_time = (start + datetime.timedelta(
                 seconds=random.randint(0, int(
-                    (end - start).total_seconds())))).time()
+                    (end - start).total_seconds()))))
         if self.at_time:
             self.next_run = self.next_run.replace(hour=self.at_time.hour,
                                                   minute=self.at_time.minute,
                                                   second=self.at_time.second,
-                                                  microsecond=0)
+                                                  microsecond=0,
+                                                  tzinfo=self.at_time.tzinfo)
             # If we are running for the first time, make sure we run
             # at the specified time *today* as well
             if (not self.last_run and not self.run_days and
-                    self.at_time > datetime.datetime.now().time()):
+                    self.at_time > datetime.datetime.now(tzlocal())):
                 self.next_run = self.next_run - datetime.timedelta(days=1)
 
         logger.info('Scheduled job %s', self)

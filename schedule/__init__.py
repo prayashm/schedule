@@ -132,8 +132,11 @@ class Job(object):
         return self.next_run < other.next_run
 
     def __repr__(self):
+        fmt_dt = "%Y-%m-%d %H:%M:%S %Z"
+        fmt_t = "%H:%M:%S %Z"
+
         def format_time(t):
-            return t.strftime("%Y-%m-%d %H:%M:%S %Z") if t else '[never]'
+            return t.strftime(fmt_dt) if t else '[never]'
 
         timestats = '(last run: %s, next run: %s)' % (
                     format_time(self.last_run), format_time(self.next_run))
@@ -157,12 +160,13 @@ class Job(object):
                 self.unit[:-1] if self.interval == 1 else self.unit)
 
         if self.between_times:
-            repr_str += ' between %s and %s' % (
-                self.between_times[0].time(), self.between_times[1].time())
+            repr_str += ' between %s' % ' and '.join(
+                t.strftime(fmt_t).strip()
+                for t in self.between_times)
         elif self.at_time:
-            repr_str += ' at %s' % self.at_time.strftime('%H:%M:%S %Z').strip()
+            repr_str += ' at %s' % self.at_time.strftime(fmt_t).strip()
         if self.start_run:
-            repr_str += ' starting %s' % self.start_run
+            repr_str += ' starting %s' % self.start_run.strftime(fmt_dt)
         repr_str += ' do %s %s' % (call_repr, timestats)
         return repr_str
 
@@ -257,13 +261,19 @@ class Job(object):
 
     def between(self, time_str):
         """Schedule the job at a random time between two timestamps."""
-        start, end = [datetime.datetime.strptime(t, '%H:%M')
-                      for t in time_str.split('-')]
-        self.between_times = (start, end)
+        times = []
+        for t in time_str.split('-'):
+            dt = parser.parse(t, tzinfos=tz_offsets)
+            if not dt.tzinfo:
+                dt = dt.replace(tzinfo=tzlocal())
+            times.append(dt)
+        self.between_times = tuple(times)
         return self
 
     def starting(self, date_str):
-        self.start_run = datetime.datetime.strptime(date_str, '%Y-%m-%d')
+        self.start_run = parser.parse(date_str, tzinfos=tz_offsets)
+        if not self.start_run.tzinfo:
+            self.start_run = self.start_run.replace(tzinfo=tzlocal())
         return self
 
     def do(self, job_func, *args, **kwargs):
@@ -335,7 +345,7 @@ class Job(object):
             # Choose a random time between both timestamps
             self.at_time = (start + datetime.timedelta(
                 seconds=random.randint(0, int(
-                    (end - start).total_seconds())))).time()
+                    (end - start).total_seconds()))))
         if self.at_time:
             self.next_run = self.next_run.replace(hour=self.at_time.hour,
                                                   minute=self.at_time.minute,
